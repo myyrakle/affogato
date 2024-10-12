@@ -9,12 +9,14 @@ use hyper::{Request, Response, Uri};
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 
+const PROXY_HOST_HEADER: &str = "Proxy-Host";
+
 async fn hello(
     mut request: Request<hyper::body::Incoming>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let headers = request.headers_mut();
 
-    let Some(proxy_target) = headers.remove("Proxy-Host") else {
+    let Some(proxy_target) = headers.remove(PROXY_HOST_HEADER) else {
         return Ok(Response::builder()
             .status(400)
             .body(Full::new(Bytes::from("Proxy-Host header is missing")))
