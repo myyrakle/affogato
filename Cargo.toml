@@ -2,6 +2,7 @@
 name = "affogato"
 version = "0.0.0"
 edition = "2021"
+license = "MIT"
 authors = ["myyrakle <sssang97@naver.com>"] 
 description = "simple HTTP Proxy" 
 keywords = ["http", "proxy", "server"] 
