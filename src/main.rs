@@ -11,7 +11,7 @@ use tokio::net::TcpListener;
 
 const PROXY_HOST_HEADER: &str = "Proxy-Host";
 
-async fn hello(
+async fn handle_proxy_request(
     mut request: Request<hyper::body::Incoming>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     // 1. get 'Proxy-Host' header from request
@@ -119,6 +119,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // We create a TcpListener and bind it to the address we want to listen on
     let listener = TcpListener::bind(addr).await?;
 
+    println!("Listening on http://{}", addr);
+
     // We start a loop to continuously accept incoming connections
     loop {
         let (stream, _) = listener.accept().await?;
@@ -132,7 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             // Finally, we bind the incoming connection to our `hello` service
             if let Err(err) = http1::Builder::new()
                 // `service_fn` converts our function in a `Service`
-                .serve_connection(io, service_fn(hello))
+                .serve_connection(io, service_fn(handle_proxy_request))
                 .await
             {
                 eprintln!("Error serving connection: {:?}", err);
