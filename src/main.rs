@@ -102,11 +102,10 @@ async fn handle_proxy_request(
 
             Ok(response_builder.body(Full::new(body)).unwrap())
         }
-        Err(err) => Ok(Response::builder()
+        Err(error) => Ok(Response::builder()
             .status(500)
             .body(Full::new(Bytes::from(format!(
-                "Failed to send request: {}",
-                err
+                "Failed to send request: {error:?}",
             ))))
             .unwrap()),
     }
