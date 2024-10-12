@@ -1,0 +1,7 @@
+###
+GET http://localhost:3000/foo/bar?baz=qux&foo=bar
+Proxy-Target: http://localhost:3001
+
+{
+}
+###
