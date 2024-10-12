@@ -1,7 +1,0 @@
-###
-GET http://localhost:3000/foo/bar?baz=qux&foo=bar
-Proxy-Host: https://www.naver.com
-
-{
-}
-###
