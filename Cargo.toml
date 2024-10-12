@@ -1,7 +1,14 @@
 [package]
 name = "affogato"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
+authors = ["myyrakle <sssang97@naver.com>"] 
+description = "simple HTTP Proxy" 
+keywords = ["http", "proxy", "server"] 
+readme = "./README.md"
+repository = "https://github.com/myyrakle/affogato" 
+documentation = "https://docs.rs/affogato/latest/affogato" 
+homepage = "https://github.com/myyrakle/affogato/blob/master/README.md" 
 
 [dependencies]
 hyper = { version = "1", features = ["full"] }
