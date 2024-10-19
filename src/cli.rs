@@ -19,3 +19,10 @@ pub struct CommandFlags {
     )]
     pub upgrade: bool,
 }
+
+pub fn parse_command() -> Command {
+    use clap::Parser;
+    let command = Command::parse();
+
+    command
+}
