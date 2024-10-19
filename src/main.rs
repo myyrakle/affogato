@@ -1,3 +1,5 @@
+mod cli;
+
 use std::convert::Infallible;
 use std::net::SocketAddr;
 
@@ -113,6 +115,10 @@ async fn handle_proxy_request(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let command = cli::parse_command();
+
+    println!("{:?}", command.value);
+
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
     // create TCP listener bound to the address
