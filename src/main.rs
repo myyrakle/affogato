@@ -1,3 +1,5 @@
+mod cli;
+
 use std::convert::Infallible;
 use std::net::SocketAddr;
 
