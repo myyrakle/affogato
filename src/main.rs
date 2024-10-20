@@ -119,27 +119,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     println!("{:?}", command.value);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    // server thread
+    tokio::spawn(async {
+        let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
-    // create TCP listener bound to the address
-    let listener = TcpListener::bind(addr).await?;
+        println!("Listening on http://{}", addr);
 
-    println!("Listening on http://{}", addr);
+        // create TCP listener bound to the address
+        let listener = TcpListener::bind(addr).await.unwrap();
 
-    // accept incoming connections
-    loop {
-        let (stream, _) = listener.accept().await?;
+        // main loop
+        loop {
+            let Ok((stream, _)) = listener.accept().await else {
+                continue;
+            };
 
-        let io = TokioIo::new(stream);
+            let io = TokioIo::new(stream);
 
-        // Spawn a tokio task to serve multiple connections concurrently
-        tokio::task::spawn(async move {
-            if let Err(err) = http1::Builder::new()
-                .serve_connection(io, service_fn(handle_proxy_request))
-                .await
-            {
-                eprintln!("Error serving connection: {:?}", err);
-            }
-        });
-    }
+            // Spawn a tokio task to serve multiple connections concurrently
+            tokio::task::spawn(async move {
+                if let Err(err) = http1::Builder::new()
+                    .serve_connection(io, service_fn(handle_proxy_request))
+                    .await
+                {
+                    eprintln!("Error serving connection: {:?}", err);
+                }
+            });
+        }
+    });
+
+    Ok(())
 }
