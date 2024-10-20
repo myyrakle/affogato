@@ -1,4 +1,5 @@
 mod cli;
+mod shutdown;
 
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -155,17 +156,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut sigterm_signal = unix::signal(unix::SignalKind::terminate()).unwrap();
     let mut sigint_signal = unix::signal(unix::SignalKind::interrupt()).unwrap();
 
-    tokio::select! {
+    let shutdown_type = tokio::select! {
         _ = sigquit_signal.recv() => {
             println!("Received SIGQUIT signal");
+            shutdown::ShutdownType::Graceful
         }
         _ = sigterm_signal.recv() => {
             println!("Received SIGTERM signal");
+            shutdown::ShutdownType::Graceful
         }
         _ = sigint_signal.recv() => {
             println!("Received SIGINT signal");
+            shutdown::ShutdownType::Immediate
+        }
+    };
+
+    match shutdown_type {
+        shutdown::ShutdownType::Immediate => {
+            std::process::exit(0);
+        }
+        shutdown::ShutdownType::Graceful => {
+            println!("Shutting down gracefully...");
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            println!("Graceful shutdown complete");
+            std::process::exit(0);
         }
     }
-
-    Ok(())
 }
