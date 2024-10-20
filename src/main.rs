@@ -1,4 +1,5 @@
 mod cli;
+mod shutdown;
 
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -119,27 +120,66 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     println!("{:?}", command.value);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    // server thread
+    tokio::spawn(async {
+        let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
-    // create TCP listener bound to the address
-    let listener = TcpListener::bind(addr).await?;
+        println!("Listening on http://{}", addr);
 
-    println!("Listening on http://{}", addr);
+        // create TCP listener bound to the address
+        let listener = TcpListener::bind(addr).await.unwrap();
 
-    // accept incoming connections
-    loop {
-        let (stream, _) = listener.accept().await?;
+        // main loop
+        loop {
+            let Ok((stream, _)) = listener.accept().await else {
+                continue;
+            };
 
-        let io = TokioIo::new(stream);
+            let io = TokioIo::new(stream);
 
-        // Spawn a tokio task to serve multiple connections concurrently
-        tokio::task::spawn(async move {
-            if let Err(err) = http1::Builder::new()
-                .serve_connection(io, service_fn(handle_proxy_request))
-                .await
-            {
-                eprintln!("Error serving connection: {:?}", err);
-            }
-        });
+            // Spawn a tokio task to serve multiple connections concurrently
+            tokio::task::spawn(async move {
+                if let Err(err) = http1::Builder::new()
+                    .serve_connection(io, service_fn(handle_proxy_request))
+                    .await
+                {
+                    eprintln!("Error serving connection: {:?}", err);
+                }
+            });
+        }
+    });
+
+    // waiting for exit signal
+    use tokio::signal::unix;
+
+    let mut sigquit_signal = unix::signal(unix::SignalKind::quit()).unwrap();
+    let mut sigterm_signal = unix::signal(unix::SignalKind::terminate()).unwrap();
+    let mut sigint_signal = unix::signal(unix::SignalKind::interrupt()).unwrap();
+
+    let shutdown_type = tokio::select! {
+        _ = sigquit_signal.recv() => {
+            println!("Received SIGQUIT signal");
+            shutdown::ShutdownType::Graceful
+        }
+        _ = sigterm_signal.recv() => {
+            println!("Received SIGTERM signal");
+            shutdown::ShutdownType::Graceful
+        }
+        _ = sigint_signal.recv() => {
+            println!("Received SIGINT signal");
+            shutdown::ShutdownType::Immediate
+        }
+    };
+
+    match shutdown_type {
+        shutdown::ShutdownType::Immediate => {
+            std::process::exit(0);
+        }
+        shutdown::ShutdownType::Graceful => {
+            println!("Shutting down gracefully...");
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            println!("Graceful shutdown complete");
+            std::process::exit(0);
+        }
     }
 }
