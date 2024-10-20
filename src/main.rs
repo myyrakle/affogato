@@ -148,5 +148,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         }
     });
 
+    // waiting for exit signal
+    use tokio::signal::unix;
+
+    let mut sigquit_signal = unix::signal(unix::SignalKind::quit()).unwrap();
+    let mut sigterm_signal = unix::signal(unix::SignalKind::terminate()).unwrap();
+    let mut sigint_signal = unix::signal(unix::SignalKind::interrupt()).unwrap();
+
+    tokio::select! {
+        _ = sigquit_signal.recv() => {
+            println!("Received SIGQUIT signal");
+        }
+        _ = sigterm_signal.recv() => {
+            println!("Received SIGTERM signal");
+        }
+        _ = sigint_signal.recv() => {
+            println!("Received SIGINT signal");
+        }
+    }
+
     Ok(())
 }
