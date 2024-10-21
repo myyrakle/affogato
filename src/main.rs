@@ -116,15 +116,20 @@ async fn handle_proxy_request(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info")
+    }
+    env_logger::init();
+
     let command = cli::parse_command();
 
-    println!("{:?}", command.value);
+    log::debug!("{:?}", command.value);
 
     // server thread
     tokio::spawn(async {
         let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
-        println!("Listening on http://{}", addr);
+        log::info!("Listening on http://{}", addr);
 
         // create TCP listener bound to the address
         let listener = TcpListener::bind(addr).await.unwrap();
@@ -158,15 +163,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let shutdown_type = tokio::select! {
         _ = sigquit_signal.recv() => {
-            println!("Received SIGQUIT signal");
+            log::info!("Received SIGQUIT signal");
             shutdown::ShutdownType::Graceful
         }
         _ = sigterm_signal.recv() => {
-            println!("Received SIGTERM signal");
+            log::info!("Received SIGTERM signal");
             shutdown::ShutdownType::Graceful
         }
         _ = sigint_signal.recv() => {
-            println!("Received SIGINT signal");
+            log::info!("Received SIGINT signal");
             shutdown::ShutdownType::Immediate
         }
     };
@@ -176,9 +181,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             std::process::exit(0);
         }
         shutdown::ShutdownType::Graceful => {
-            println!("Shutting down gracefully...");
+            log::info!("Graceful shutdown started");
             std::thread::sleep(std::time::Duration::from_secs(5));
-            println!("Graceful shutdown complete");
+            log::info!("Graceful shutdown completed");
             std::process::exit(0);
         }
     }
