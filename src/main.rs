@@ -116,6 +116,9 @@ async fn handle_proxy_request(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info")
+    }
     env_logger::init();
 
     let command = cli::parse_command();
