@@ -125,6 +125,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     log::debug!("{:?}", command.value);
 
+    if command.value.upgrade {
+        log::info!("Upgrade mode is enabled");
+    }
+
     // server thread
     tokio::spawn(async {
         let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
