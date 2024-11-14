@@ -1,8 +1,14 @@
 mod cli;
 mod shutdown;
 
+#[cfg(target_os = "linux")]
+mod socket;
+
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::os::fd::RawFd;
+use std::sync::Arc;
 
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
@@ -10,7 +16,9 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{HeaderMap, Request, Response};
 use hyper_util::rt::TokioIo;
+use socket::FileDesceriptors;
 use tokio::net::TcpListener;
+use tokio::sync::Mutex;
 
 const PROXY_HOST_HEADER: &str = "Proxy-Host";
 
@@ -129,6 +137,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         log::info!("Upgrade mode is enabled");
     }
 
+    let file_descriptors: Option<FileDesceriptors> = None;
+
     // server thread
     tokio::spawn(async {
         let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
@@ -187,6 +197,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         shutdown::ShutdownType::Graceful => {
             log::info!("Graceful shutdown started");
             std::thread::sleep(std::time::Duration::from_secs(5));
+
+            #[cfg(target_os = "linux")]
+            {
+                if let Some(file_descriptors) = &file_descriptors {
+                    let file_descriptors = file_descriptors.lock().await;
+
+                    file_descriptors
+                        .block_socket_and_send_to_new_server("/tmp/affogato_upgrade.sock");
+                }
+            }
+
             log::info!("Graceful shutdown completed");
             std::process::exit(0);
         }
