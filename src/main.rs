@@ -4,12 +4,6 @@ mod shutdown;
 #[cfg(target_os = "linux")]
 mod socket;
 
-use std::collections::HashMap;
-use std::convert::Infallible;
-use std::net::SocketAddr;
-use std::os::fd::RawFd;
-use std::sync::Arc;
-
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use hyper::server::conn::http1;
@@ -17,8 +11,9 @@ use hyper::service::service_fn;
 use hyper::{HeaderMap, Request, Response};
 use hyper_util::rt::TokioIo;
 use socket::FileDesceriptors;
+use std::convert::Infallible;
+use std::net::SocketAddr;
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
 
 const PROXY_HOST_HEADER: &str = "Proxy-Host";
 
@@ -204,7 +199,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     let file_descriptors = file_descriptors.lock().await;
 
                     file_descriptors
-                        .block_socket_and_send_to_new_server("/tmp/affogato_upgrade.sock");
+                        .block_socket_and_send_to_new_server("/tmp/affogato_upgrade.sock")
+                        .expect("Failed to send file descriptors to new server");
                 }
             }
 
