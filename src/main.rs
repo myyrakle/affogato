@@ -205,6 +205,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let addr = _addr;
         let file_descriptors = _file_descriptors;
 
+        let mut try_count = 0;
+
         let listener = loop {
             let result = TcpListener::bind(addr).await;
 
@@ -212,8 +214,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 break listener;
             }
 
+            if try_count > 5 {
+                return;
+            }
+
             log::error!("Failed to bind to address: {}", addr);
             std::thread::sleep(std::time::Duration::from_secs(1));
+            try_count += 1;
         };
 
         {
