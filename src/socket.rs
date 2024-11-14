@@ -11,7 +11,7 @@ const MAX_RETRY: usize = 5;
 const RETRY_INTERVAL: time::Duration = time::Duration::from_secs(1);
 
 pub struct FileDescriptorsMap {
-    map: HashMap<String, RawFd>,
+    pub map: HashMap<String, RawFd>,
 }
 
 impl FileDescriptorsMap {
@@ -77,7 +77,7 @@ impl FileDescriptorsMap {
     }
 }
 
-pub type FileDesceriptors = Arc<Mutex<FileDescriptorsMap>>;
+pub type FileDescriptors = Arc<Mutex<FileDescriptorsMap>>;
 
 #[cfg(target_os = "linux")]
 pub fn send_fds_to<P>(fds: Vec<RawFd>, payload: &[u8], path: &P) -> Result<usize, nix::Error>
@@ -302,7 +302,7 @@ fn accept_with_retry(listen_fd: i32) -> Result<i32, nix::Error> {
                 match e {
                     Errno::EAGAIN => {
                         log::error!(
-                            "No incoming socket transfer, sleep {RETRY_INTERVAL:?} and try again"
+                            "No incoming socket transfer, sleep {RETRY_INTERVAL:?} and try again (FD: {listen_fd})"
                         );
                         retried += 1;
                         thread::sleep(RETRY_INTERVAL);

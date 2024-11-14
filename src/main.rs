@@ -10,10 +10,13 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{HeaderMap, Request, Response};
 use hyper_util::rt::TokioIo;
-use socket::FileDesceriptors;
+use socket::{FileDescriptors, FileDescriptorsMap};
 use std::convert::Infallible;
 use std::net::SocketAddr;
-use tokio::net::TcpListener;
+use std::os::fd::FromRawFd;
+use std::sync::Arc;
+use tokio::net::{TcpListener, TcpSocket};
+use tokio::sync::Mutex;
 
 const PROXY_HOST_HEADER: &str = "Proxy-Host";
 
@@ -119,6 +122,8 @@ async fn handle_proxy_request(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "info")
     }
@@ -132,16 +137,93 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         log::info!("Upgrade mode is enabled");
     }
 
-    let file_descriptors: Option<FileDesceriptors> = None;
+    let file_descriptors: FileDescriptors = Arc::new(Mutex::new(FileDescriptorsMap::new()));
+
+    if command.value.upgrade {
+        #[cfg(target_os = "linux")]
+        {
+            let mut file_descriptors = file_descriptors.lock().await;
+            file_descriptors
+                .get_from_sock("/tmp/affogato_upgrade.sock")
+                .expect("Failed to get file descriptors from socket");
+        }
+    }
+
+    // server for upgrade mode
+    #[cfg(target_os = "linux")]
+    {
+        if command.value.upgrade {
+            let addr = addr.to_string();
+
+            let Some(fd) = file_descriptors
+                .lock()
+                .await
+                .get(addr.as_str())
+                .map(|e| e.to_owned())
+            else {
+                log::error!("Failed to get file descriptors from socket");
+                std::process::exit(1);
+            };
+
+            let std_listener_stream = unsafe { std::net::TcpStream::from_raw_fd(fd) };
+
+            let tcp_socket = TcpSocket::from_std_stream(std_listener_stream);
+
+            let listener = tcp_socket.listen(65535).unwrap();
+
+            tokio::spawn(async move {
+                log::info!("Listening on http://{}", listener.local_addr().unwrap());
+
+                loop {
+                    let Ok((stream, _)) = listener.accept().await else {
+                        continue;
+                    };
+
+                    let io = TokioIo::new(stream);
+
+                    tokio::task::spawn(async move {
+                        if let Err(err) = http1::Builder::new()
+                            .serve_connection(io, service_fn(handle_proxy_request))
+                            .await
+                        {
+                            eprintln!("Error serving connection: {:?}", err);
+                        }
+                    });
+                }
+            });
+        }
+    }
 
     // server thread
-    tokio::spawn(async {
-        let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+
+    // create TCP listener bound to the address
+
+    let _addr = addr.clone();
+
+    let _file_descriptors = file_descriptors.clone();
+    tokio::spawn(async move {
+        let addr = _addr;
+        let file_descriptors = _file_descriptors;
+
+        let listener = loop {
+            let result = TcpListener::bind(addr).await;
+
+            if let Ok(listener) = result {
+                break listener;
+            }
+
+            log::error!("Failed to bind to address: {}", addr);
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        };
+
+        {
+            file_descriptors.lock().await.add(
+                addr.to_string(),
+                std::os::unix::io::AsRawFd::as_raw_fd(&listener),
+            )
+        }
 
         log::info!("Listening on http://{}", addr);
-
-        // create TCP listener bound to the address
-        let listener = TcpListener::bind(addr).await.unwrap();
 
         // main loop
         loop {
@@ -195,13 +277,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
             #[cfg(target_os = "linux")]
             {
-                if let Some(file_descriptors) = &file_descriptors {
-                    let file_descriptors = file_descriptors.lock().await;
+                let file_descriptors = file_descriptors.lock().await;
 
-                    file_descriptors
-                        .block_socket_and_send_to_new_server("/tmp/affogato_upgrade.sock")
-                        .expect("Failed to send file descriptors to new server");
-                }
+                file_descriptors
+                    .block_socket_and_send_to_new_server("/tmp/affogato_upgrade.sock")
+                    .expect("Failed to send file descriptors to new server");
             }
 
             log::info!("Graceful shutdown completed");
