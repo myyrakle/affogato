@@ -139,89 +139,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let file_descriptors: FileDescriptors = Arc::new(Mutex::new(FileDescriptorsMap::new()));
 
-    if command.value.upgrade {
-        #[cfg(target_os = "linux")]
-        {
-            let mut file_descriptors = file_descriptors.lock().await;
-            file_descriptors
-                .get_from_sock("/tmp/affogato_upgrade.sock")
-                .expect("Failed to get file descriptors from socket");
-        }
+    if command.value.is_uprade_mode() {
+        let mut file_descriptors = file_descriptors.lock().await;
+        file_descriptors
+            .get_from_sock("/tmp/affogato_upgrade.sock")
+            .expect("Failed to get file descriptors from socket");
     }
 
     // server for upgrade mode
-    #[cfg(target_os = "linux")]
-    {
-        if command.value.upgrade {
-            let addr = addr.to_string();
+    let listener = if command.value.is_uprade_mode() {
+        let addr = addr.to_string();
 
-            let Some(fd) = file_descriptors
-                .lock()
-                .await
-                .get(addr.as_str())
-                .map(|e| e.to_owned())
-            else {
-                log::error!("Failed to get file descriptors from socket");
-                std::process::exit(1);
-            };
-
-            let std_listener_stream = unsafe { std::net::TcpStream::from_raw_fd(fd) };
-
-            let tcp_socket = TcpSocket::from_std_stream(std_listener_stream);
-
-            let listener = tcp_socket.listen(65535).unwrap();
-
-            tokio::spawn(async move {
-                log::info!("Listening on http://{}", listener.local_addr().unwrap());
-
-                loop {
-                    let Ok((stream, _)) = listener.accept().await else {
-                        continue;
-                    };
-
-                    let io = TokioIo::new(stream);
-
-                    tokio::task::spawn(async move {
-                        if let Err(err) = http1::Builder::new()
-                            .serve_connection(io, service_fn(handle_proxy_request))
-                            .await
-                        {
-                            eprintln!("Error serving connection: {:?}", err);
-                        }
-                    });
-                }
-            });
-        }
-    }
-
-    // server thread
-
-    // create TCP listener bound to the address
-
-    let _addr = addr.clone();
-
-    let _file_descriptors = file_descriptors.clone();
-    tokio::spawn(async move {
-        let addr = _addr;
-        let file_descriptors = _file_descriptors;
-
-        let mut try_count = 0;
-
-        let listener = loop {
-            let result = TcpListener::bind(addr).await;
-
-            if let Ok(listener) = result {
-                break listener;
-            }
-
-            if try_count > 5 {
-                return;
-            }
-
-            log::error!("Failed to bind to address: {}", addr);
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            try_count += 1;
+        let Some(fd) = file_descriptors
+            .lock()
+            .await
+            .get(addr.as_str())
+            .map(|e| e.to_owned())
+        else {
+            log::error!("Failed to get file descriptors from socket");
+            std::process::exit(1);
         };
+
+        let std_listener_stream = unsafe { std::net::TcpStream::from_raw_fd(fd) };
+
+        let tcp_socket = TcpSocket::from_std_stream(std_listener_stream);
+
+        tcp_socket.listen(65535).unwrap()
+    } else {
+        let listener = TcpListener::bind(addr).await.unwrap();
 
         {
             file_descriptors.lock().await.add(
@@ -230,6 +175,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             )
         }
 
+        listener
+    };
+
+    // server thread
+    // create TCP listener bound to the address
+    tokio::spawn(async move {
         log::info!("Listening on http://{}", addr);
 
         // main loop

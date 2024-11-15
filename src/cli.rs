@@ -20,9 +20,13 @@ pub struct CommandFlags {
     pub upgrade: bool,
 }
 
+impl CommandFlags {
+    pub fn is_uprade_mode(&self) -> bool {
+        self.upgrade && cfg!(target_os = "linux")
+    }
+}
+
 pub fn parse_command() -> Command {
     use clap::Parser;
-    let command = Command::parse();
-
-    command
+    Command::parse()
 }
