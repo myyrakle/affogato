@@ -66,6 +66,10 @@ pub async fn handle_proxy_request(
             .unwrap());
     };
 
+    log::debug!("Proxying request to: {method} {request_uri}");
+    log::debug!("Proxying request headers: {request_headers:?}");
+    log::debug!("Proxying request body: {request_body}");
+
     // 3. send request to proxy
     let Ok(client) = reqwest::ClientBuilder::new().build() else {
         return Ok(Response::builder()
