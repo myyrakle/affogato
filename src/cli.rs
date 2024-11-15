@@ -17,7 +17,7 @@ pub struct CommandFlags {
         default_value = "false",
         help = "upgrade mode for no downtime replacement"
     )]
-    pub upgrade: bool,
+    upgrade: bool,
 
     #[clap(short, long, default_value = "4443", help = "port to listen on")]
     pub port: u16,

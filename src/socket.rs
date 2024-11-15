@@ -51,7 +51,6 @@ impl FileDescriptorsMap {
         }
     }
 
-    #[cfg(target_os = "linux")]
     pub fn block_socket_and_send_to_new_server<P>(
         &self,
         upgrade_path: &P,
@@ -79,7 +78,6 @@ impl FileDescriptorsMap {
 
 pub type FileDescriptors = Arc<Mutex<FileDescriptorsMap>>;
 
-#[cfg(target_os = "linux")]
 pub fn send_fds_to<P>(fds: Vec<RawFd>, payload: &[u8], path: &P) -> Result<usize, nix::Error>
 where
     P: ?Sized + nix::NixPath + std::fmt::Display,
@@ -285,7 +283,6 @@ where
     Ok((fds, msg.bytes))
 }
 
-#[cfg(target_os = "linux")]
 fn accept_with_retry(listen_fd: i32) -> Result<i32, nix::Error> {
     use std::thread;
 
