@@ -12,8 +12,9 @@ use hyper::{HeaderMap, Request, Response};
 use hyper_util::rt::TokioIo;
 use socket::{FileDescriptors, FileDescriptorsMap};
 use std::convert::Infallible;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::os::fd::FromRawFd;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpSocket};
 use tokio::sync::Mutex;
@@ -131,7 +132,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     log::debug!("{:?}", command.value);
 
     let port = command.value.port;
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let address = IpAddr::from_str(&command.value.address).unwrap();
+    let host = SocketAddr::from((address, port));
 
     if command.value.upgrade {
         log::info!("Upgrade mode is enabled");
@@ -148,7 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // server for upgrade mode
     let listener = if command.value.is_uprade_mode() {
-        let addr = addr.to_string();
+        let addr = host.to_string();
 
         let Some(fd) = file_descriptors
             .lock()
@@ -166,11 +168,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         tcp_socket.listen(65535).unwrap()
     } else {
-        let listener = TcpListener::bind(addr).await.unwrap();
+        let listener = TcpListener::bind(host).await.unwrap();
 
         {
             file_descriptors.lock().await.add(
-                addr.to_string(),
+                host.to_string(),
                 std::os::unix::io::AsRawFd::as_raw_fd(&listener),
             )
         }
@@ -181,7 +183,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // server thread
     // create TCP listener bound to the address
     tokio::spawn(async move {
-        log::info!("Listening on http://{}", addr);
+        log::info!("Listening on http://{}", host);
 
         // main loop
         loop {

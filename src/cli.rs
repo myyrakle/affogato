@@ -21,6 +21,9 @@ pub struct CommandFlags {
 
     #[clap(short, long, default_value = "4443", help = "port to listen on")]
     pub port: u16,
+
+    #[clap(short, long, default_value = "0.0.0.0", help = "address to listen on")]
+    pub address: String,
 }
 
 impl CommandFlags {
