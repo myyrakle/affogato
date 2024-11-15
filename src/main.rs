@@ -20,6 +20,7 @@ use tokio::net::{TcpListener, TcpSocket};
 use tokio::sync::Mutex;
 
 const PROXY_HOST_HEADER: &str = "Proxy-Host";
+const UPGRADE_SOCKET_PATH: &str = "/tmp/affogato_upgrade.sock";
 
 async fn handle_proxy_request(
     mut request: Request<hyper::body::Incoming>,
@@ -144,7 +145,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if command.value.is_uprade_mode() {
         let mut file_descriptors = file_descriptors.lock().await;
         file_descriptors
-            .get_from_sock("/tmp/affogato_upgrade.sock")
+            .get_from_sock(UPGRADE_SOCKET_PATH)
             .expect("Failed to get file descriptors from socket");
     }
 
@@ -240,7 +241,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 let file_descriptors = file_descriptors.lock().await;
 
                 file_descriptors
-                    .block_socket_and_send_to_new_server("/tmp/affogato_upgrade.sock")
+                    .block_socket_and_send_to_new_server(UPGRADE_SOCKET_PATH)
                     .expect("Failed to send file descriptors to new server");
             }
 
