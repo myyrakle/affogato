@@ -135,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let address = IpAddr::from_str(&command.value.address).unwrap();
     let host = SocketAddr::from((address, port));
 
-    if command.value.upgrade {
+    if command.value.is_uprade_mode() {
         log::info!("Upgrade mode is enabled");
     }
 
