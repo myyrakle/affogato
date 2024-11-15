@@ -132,24 +132,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let command = cli::parse_command();
     log::debug!("{:?}", command.value);
 
+    // create address from command line arguments
     let port = command.value.port;
     let address = IpAddr::from_str(&command.value.address).unwrap();
     let host = SocketAddr::from((address, port));
 
-    if command.value.is_uprade_mode() {
-        log::info!("Upgrade mode is enabled");
-    }
-
     let file_descriptors: FileDescriptors = Arc::new(Mutex::new(FileDescriptorsMap::new()));
 
     if command.value.is_uprade_mode() {
+        log::info!("Upgrade mode is enabled");
+
+        // get file descriptors from the .sock file
         let mut file_descriptors = file_descriptors.lock().await;
         file_descriptors
             .get_from_sock(UPGRADE_SOCKET_PATH)
             .expect("Failed to get file descriptors from socket");
     }
 
-    // server for upgrade mode
+    // create TCP listener bound to the address
     let listener = if command.value.is_uprade_mode() {
         let addr = host.to_string();
 
@@ -171,12 +171,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     } else {
         let listener = TcpListener::bind(host).await.unwrap();
 
-        {
-            file_descriptors.lock().await.add(
-                host.to_string(),
-                std::os::unix::io::AsRawFd::as_raw_fd(&listener),
-            )
-        }
+        file_descriptors.lock().await.add(
+            host.to_string(),
+            std::os::unix::io::AsRawFd::as_raw_fd(&listener),
+        );
 
         listener
     };
