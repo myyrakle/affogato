@@ -28,7 +28,5 @@ impl CommandFlags {
 
 pub fn parse_command() -> Command {
     use clap::Parser;
-    let command = Command::parse();
-
-    command
+    Command::parse()
 }
