@@ -57,9 +57,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             std::process::exit(1);
         };
 
-        let std_listener_stream = unsafe { std::net::TcpStream::from_raw_fd(fd) };
-
-        let tcp_socket = TcpSocket::from_std_stream(std_listener_stream);
+        let tcp_stream = unsafe { std::net::TcpStream::from_raw_fd(fd) };
+        let tcp_socket = TcpSocket::from_std_stream(tcp_stream);
 
         tcp_socket.listen(65535).unwrap()
     } else {
@@ -84,12 +83,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 continue;
             };
 
-            let io = TokioIo::new(stream);
+            let io_stream = TokioIo::new(stream);
 
             // Spawn a tokio task to serve multiple connections concurrently
             tokio::task::spawn(async move {
                 if let Err(err) = http1::Builder::new()
-                    .serve_connection(io, service_fn(proxy::handle_proxy_request))
+                    .serve_connection(io_stream, service_fn(proxy::handle_proxy_request))
                     .await
                 {
                     eprintln!("Error serving connection: {:?}", err);
