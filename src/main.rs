@@ -1,9 +1,11 @@
 mod cli;
+pub mod constants;
 mod shutdown;
 
 #[cfg(target_os = "linux")]
 mod socket;
 
+use constants::{PROXY_HOST_HEADER, UPGRADE_SOCKET_PATH};
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
 use hyper::server::conn::http1;
@@ -18,9 +20,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpSocket};
 use tokio::sync::Mutex;
-
-const PROXY_HOST_HEADER: &str = "Proxy-Host";
-const UPGRADE_SOCKET_PATH: &str = "/tmp/affogato_upgrade.sock";
 
 async fn handle_proxy_request(
     mut request: Request<hyper::body::Incoming>,
@@ -205,46 +204,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
 
     // waiting for exit signal
-    use tokio::signal::unix;
+    shutdown::handle_shutdown(file_descriptors).await;
 
-    let mut sigquit_signal = unix::signal(unix::SignalKind::quit()).unwrap();
-    let mut sigterm_signal = unix::signal(unix::SignalKind::terminate()).unwrap();
-    let mut sigint_signal = unix::signal(unix::SignalKind::interrupt()).unwrap();
-
-    let shutdown_type = tokio::select! {
-        _ = sigquit_signal.recv() => {
-            log::info!("Received SIGQUIT signal");
-            shutdown::ShutdownType::Graceful
-        }
-        _ = sigterm_signal.recv() => {
-            log::info!("Received SIGTERM signal");
-            shutdown::ShutdownType::Graceful
-        }
-        _ = sigint_signal.recv() => {
-            log::info!("Received SIGINT signal");
-            shutdown::ShutdownType::Immediate
-        }
-    };
-
-    match shutdown_type {
-        shutdown::ShutdownType::Immediate => {
-            std::process::exit(0);
-        }
-        shutdown::ShutdownType::Graceful => {
-            log::info!("Graceful shutdown started");
-            std::thread::sleep(std::time::Duration::from_secs(5));
-
-            #[cfg(target_os = "linux")]
-            {
-                let file_descriptors = file_descriptors.lock().await;
-
-                file_descriptors
-                    .block_socket_and_send_to_new_server(UPGRADE_SOCKET_PATH)
-                    .expect("Failed to send file descriptors to new server");
-            }
-
-            log::info!("Graceful shutdown completed");
-            std::process::exit(0);
-        }
-    }
+    return Ok(());
 }
