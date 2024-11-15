@@ -139,18 +139,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let file_descriptors: FileDescriptors = Arc::new(Mutex::new(FileDescriptorsMap::new()));
 
-    if command.value.upgrade {
-        #[cfg(target_os = "linux")]
-        {
-            let mut file_descriptors = file_descriptors.lock().await;
-            file_descriptors
-                .get_from_sock("/tmp/affogato_upgrade.sock")
-                .expect("Failed to get file descriptors from socket");
-        }
+    if command.value.is_uprade_mode() {
+        let mut file_descriptors = file_descriptors.lock().await;
+        file_descriptors
+            .get_from_sock("/tmp/affogato_upgrade.sock")
+            .expect("Failed to get file descriptors from socket");
     }
 
     // server for upgrade mode
-    let listener = if command.value.upgrade && cfg!(target_os = "linux") {
+    let listener = if command.value.is_uprade_mode() {
         let addr = addr.to_string();
 
         let Some(fd) = file_descriptors
@@ -169,18 +166,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         tcp_socket.listen(65535).unwrap()
     } else {
-        TcpListener::bind(addr).await.unwrap()
-    };
-
-    // server thread
-    // create TCP listener bound to the address
-
-    let _addr = addr.clone();
-
-    let _file_descriptors = file_descriptors.clone();
-    tokio::spawn(async move {
-        let addr = _addr;
-        let file_descriptors = _file_descriptors;
+        let listener = TcpListener::bind(addr).await.unwrap();
 
         {
             file_descriptors.lock().await.add(
@@ -189,6 +175,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             )
         }
 
+        listener
+    };
+
+    // server thread
+    // create TCP listener bound to the address
+    tokio::spawn(async move {
         log::info!("Listening on http://{}", addr);
 
         // main loop
